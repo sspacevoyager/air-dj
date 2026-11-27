@@ -1,0 +1,14 @@
+{
+  "wallpapers": [
+    "wallpapers/my-picture.jpg",
+    "wallpapers/another.png"
+  ],
+  "siren": "sounds/siren.mp3",
+  "pistolShot": "sounds/shot.mp3",
+  "pistolCock": "sounds/cock.mp3",
+  "jungle": {
+    "file": "sounds/drum-loop.wav",
+    "bpm": 138,
+    "beats": 16
+  }
+}

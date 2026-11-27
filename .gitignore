@@ -1,0 +1,10 @@
+*.log
+.DS_Store
+node_modules/
+playwright-report/
+test-results/
+
+# your own pictures and sounds (see assets/local/README.md)
+assets/local/*
+!assets/local/README.md
+!assets/local/media.example.json

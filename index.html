@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Air DJ</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- what the page may load and contact: its own files, WebAssembly (hand tracking), blob: URLs (the recorder's
+     audio processor and the take preview), and the OpenAI API for subtitles. Nothing else, even if something is injected. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; connect-src 'self' https://api.openai.com; img-src 'self' blob: data:; media-src 'self' blob:; style-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="syncDlg" hidden role="dialog" aria-modal="true" aria-labelledby="syncTitle">
+  <div class="card win">
+    <div class="bar"><span id="syncTitle">TAKE</span><span class="hint">Enter = save · Esc = discard</span></div>
+    <video id="syncVid" controls playsinline></video>
+    <div class="row"><b>Song timing</b> <span id="syncVal" class="lcd-text"></span> <span id="syncInfo"></span></div>
+    <input id="syncMs" type="range" step="5" aria-label="Song timing">
+    <div class="row"><span class="row" id="syncNudge"><button data-d="-50">-50</button><button data-d="-10">-10</button><button data-d="10">+10</button><button data-d="50">+50</button></span>
+      <button id="syncAuto" class="primary">Auto sync</button> <span id="syncAutoMsg"></span></div>
+    <p>Auto sync lines the song up with your hand moves. By ear: song before your clap, slide right; after it, slide left.
+       Sounds from your hands stay on their gestures.</p>
+    <div class="row"><button id="syncSave" class="primary">Save video</button><button id="syncDiscard">Discard</button></div>
+  </div>
+</div>
+<div id="wrap">
+  <canvas id="c" width="1280" height="900"></canvas>
+  <div id="panel">
+    <section class="win" id="playerWin">
+      <div class="bar"><span>AIR DJ</span><span id="perf" title="Frames drawn per second, and hand checks per second. Under 25 fps effects and takes stutter."></span></div>
+      <div class="lcd">
+        <div class="lcd-row"><span id="tcur" class="big">0:00</span><span class="lcd-side"><span id="lcdBpm"></span><span id="tdur">0:00</span></span></div>
+        <div id="now" class="marquee">Nothing playing</div>
+      </div>
+      <div id="seek" title="Click to jump" role="slider" aria-label="Position"><div id="seekfill"></div></div>
+      <div id="tbtns">
+        <button id="prev" title="Previous (P)" aria-label="Previous track" disabled>⏮</button>
+        <button id="pp" title="Pause / play (Space)" aria-label="Pause or play" disabled>⏸</button>
+        <button id="next" title="Next (N)" aria-label="Next track" disabled>⏭</button>
+        <button id="rec" title="Record / stop (Enter)" disabled>● Rec <kbd>⏎</kbd></button>
+      </div>
+      <label class="check" title="Record counts in 3-2-1 and starts the playlist from track 1 together with the take"><input type="checkbox" id="recTop" checked> Takes start from track 1 (3-2-1)</label>
+      <p id="status"></p>
+    </section>
+
+    <section class="win" id="playlistWin">
+      <div class="bar"><span>PLAYLIST</span><span id="plCount"></span></div>
+      <ol id="playlist"></ol>
+      <p id="plEmpty" class="empty">Empty. Add songs, pick them from the library, or try the demo.</p>
+      <button id="demo">♪ Try the demo song</button>
+      <div class="row">
+        <label class="btn" id="addBtn">+ Add songs<input id="files" type="file" accept="audio/*" multiple hidden></label>
+        <button id="start" class="primary" disabled>▶ Start</button>
+      </div>
+    </section>
+
+    <details class="win" id="libraryWin" open>
+      <summary class="bar"><span>LIBRARY</span><span id="libCount"></span></summary>
+      <input id="libSearch" type="search" placeholder="Search songs" aria-label="Search the library" autocomplete="off" spellcheck="false">
+      <ul id="library"></ul>
+      <p id="libEmpty" class="empty">Songs you add stay here, in this browser.</p>
+    </details>
+
+    <details class="win" id="settingsWin">
+      <summary class="bar"><span>SETTINGS</span></summary>
+      <label class="field">Camera <select id="cam"><option value="">allow it on Start</option></select></label>
+      <label class="field">Layout <select id="layout">
+        <option value="wide" selected>Full camera</option>
+        <option value="tall">Instagram 9:16</option>
+      </select></label>
+      <label class="field">Echo <select id="echo">
+        <option value="0.75" selected>dotted 1/8</option>
+        <option value="0.5">1/8</option>
+        <option value="1">1/4</option>
+        <option value="2">1/2 bar</option>
+        <option value="0">off</option>
+      </select></label>
+      <label class="check"><input type="checkbox" id="subs"> Subtitles 中文 + RU</label>
+      <div id="subsKey">
+        <input id="openaiKey" type="password" placeholder="OpenAI key (sk-...)" aria-label="OpenAI key" autocomplete="off" spellcheck="false">
+        <p id="keyHint">Needed for subtitles. Kept only in this browser.</p>
+      </div>
+    </details>
+
+    <details class="win" id="helpWin">
+      <summary class="bar"><span>GESTURES</span><span class="q">?</span></summary>
+      <table class="help">
+        <tr><th></th><th>Left hand</th><th>Right hand</th></tr>
+        <tr><td>Pinch</td><td>speed</td><td>filter</td></tr>
+        <tr><td>Thumb + middle</td><td>bass boost</td><td>beat roll</td></tr>
+        <tr><td>Thumb + ring ↕</td><td>8-bit crush</td><td>octaves</td></tr>
+        <tr><td>Thumb + pinky</td><td>hi-hat</td><td>siren ↕</td></tr>
+        <tr><td>Finger gun</td><td></td><td>pistol</td></tr>
+      </table>
+      <p>Hands apart: volume · hands up: echo · two fists: record stop, then swing to throw it away.</p>
+      <p class="keys"><kbd>⏎</kbd> rec <kbd>Space</kbd> pause <kbd>N</kbd>/<kbd>P</kbd> track <kbd>1</kbd> bass <kbd>3</kbd> hat
+         <kbd>4</kbd> pistol <kbd>6</kbd> jungle <kbd>B</kbd> roll <kbd>C</kbd> crush <kbd>H</kbd> octaves <kbd>S</kbd> siren
+         <kbd>T</kbd> stop <kbd>X</kbd> throw <kbd>E</kbd> eyes</p>
+    </details>
+  </div>
+</div>
+<video id="v" playsinline muted></video>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

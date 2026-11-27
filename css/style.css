@@ -1,0 +1,120 @@
+/* Air DJ: page layout, the control panel and the take preview. Late-90s hi-fi software look: gunmetal windows with
+   grooved title bars, a green LCD, bevelled buttons. */
+:root {
+  --page: #121317;
+  --metal-hi: #4a4e59; --metal-lo: #2b2d34; --edge-hi: #6b7080; --edge-lo: #121317;
+  --bar: #1e2026; --groove: #8a7a4c; --gold: #e9c46a;
+  --lcd-bg: #040a06; --lcd: #3dff86; --lcd-dim: #1d7a45; --lcd-glow: rgba(61, 255, 134, .45);
+  --text: #e4e4e8; --muted: #a3a6b1; --warn: #ff8a7a; --rec: #e0352b;
+  --ui: Tahoma, Verdana, "Segoe UI", sans-serif;
+  --mono: Menlo, Consolas, "Courier New", monospace;
+  --panel: clamp(360px, 30vw, 480px);          /* the panel is big enough to hit from a step back; the video gets the rest */
+}
+html, body { margin: 0; height: 100%; background: var(--page); color: var(--text); font: 15px/1.45 var(--ui); }
+#wrap { height: 100%; display: flex; gap: 18px; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; }
+/* the canvas scales down to fit beside the panel, keeping its aspect ratio (wide or 9:16) */
+canvas { max-height: calc(100vh - 32px); max-width: calc(100vw - var(--panel) - 50px); background: #0a0a0d;
+  border: 2px solid; border-color: var(--edge-lo) var(--edge-hi) var(--edge-hi) var(--edge-lo); }
+/* the panel scrolls on its own when it's taller than the window, so the player on top is always reachable */
+#panel { width: var(--panel); flex: none; display: flex; flex-direction: column; gap: 10px; max-height: calc(100vh - 32px);
+  overflow-y: auto; align-self: flex-start; }
+#v { display: none; }                         /* the camera feed: only drawn on the canvas */
+p { margin: 0; color: var(--muted); }
+kbd { font: 12px var(--mono); padding: 0 5px; border: 1px solid #000; border-radius: 2px; background: #1a1b20; color: var(--gold); }
+
+/* ---- windows */
+.win { background: linear-gradient(var(--metal-hi), var(--metal-lo)); border: 1px solid #000;
+  box-shadow: inset 1px 1px 0 var(--edge-hi), inset -1px -1px 0 var(--edge-lo);
+  padding: 0 10px 10px; display: flex; flex-direction: column; gap: 9px; }
+details.win:not([open]) { padding-bottom: 0; }
+.bar { display: flex; align-items: center; gap: 10px; margin: 1px -9px 0; padding: 5px 10px; background: var(--bar);
+  font: bold 12px var(--ui); letter-spacing: 2px; color: var(--gold); text-transform: uppercase; list-style: none; user-select: none; }
+.bar::-webkit-details-marker { display: none; }
+.bar::before { content: ""; order: 1; flex: 1; height: 7px;   /* the grooves between the title and the info on the right */
+  background: repeating-linear-gradient(to bottom, var(--groove) 0 1px, transparent 1px 3px); opacity: .7; }
+.bar > span { white-space: nowrap; }
+.bar > span:not(:first-child) { order: 2; letter-spacing: 0; font-weight: normal; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+summary.bar { cursor: pointer; }
+summary.bar > span:first-child::before { content: "▸ "; }
+details[open] > summary.bar > span:first-child::before { content: "▾ "; }
+.empty { font-style: italic; }
+.row { display: flex; gap: 6px; align-items: center; }
+
+/* ---- controls */
+button, label.btn { font: bold 15px var(--ui); color: var(--text); padding: 9px 12px; cursor: pointer; text-align: center;
+  background: linear-gradient(#636875, #3c3f48); border: 1px solid #0b0c0f; border-radius: 2px;
+  box-shadow: inset 1px 1px 0 rgba(255,255,255,.22), inset -1px -1px 0 rgba(0,0,0,.35); }
+button:hover:not(:disabled), label.btn:hover { background: linear-gradient(#707684, #454852); }
+button:active:not(:disabled), label.btn:active { background: linear-gradient(#34363e, #4a4e58); box-shadow: inset 1px 1px 2px rgba(0,0,0,.6); }
+button:disabled { color: #7d808a; cursor: default; }
+button.primary { background: linear-gradient(#f1d27e, #b8902f); color: #1a1406; }
+button.primary:hover:not(:disabled) { background: linear-gradient(#f7dc92, #c79d38); }
+button.primary:disabled { background: linear-gradient(#77705e, #565041); color: #2c2a24; }
+.row > .btn, .row > button { flex: 1; }
+select, input[type=search], input[type=password] { font: 15px var(--ui); color: var(--lcd); background: var(--lcd-bg);
+  border: 1px solid; border-color: var(--edge-lo) var(--edge-hi) var(--edge-hi) var(--edge-lo); border-radius: 0; padding: 7px 8px;
+  box-sizing: border-box; width: 100%; }
+select:disabled { color: var(--lcd-dim); }
+input::placeholder { color: var(--lcd-dim); }
+label.check { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+label.check input { accent-color: var(--gold); margin: 0; width: 18px; height: 18px; }
+label.check:has(input:disabled) { color: var(--muted); cursor: default; }
+label.field { display: grid; grid-template-columns: 76px 1fr; align-items: center; gap: 6px; }
+
+/* ---- player */
+.lcd { margin-top: 1px; background: var(--lcd-bg); padding: 10px 12px; font-family: var(--mono); color: var(--lcd);
+  text-shadow: 0 0 6px var(--lcd-glow); border: 1px solid; border-color: var(--edge-lo) var(--edge-hi) var(--edge-hi) var(--edge-lo); }
+.lcd-text { font-family: var(--mono); color: var(--lcd); }
+.lcd-row { display: flex; justify-content: space-between; align-items: flex-end; }
+.lcd .big { font-size: 48px; line-height: 1; letter-spacing: 1px; font-variant-numeric: tabular-nums; }
+.lcd-side { display: flex; flex-direction: column; align-items: flex-end; font-size: 14px; color: var(--lcd-dim); text-shadow: none; }
+#now { margin-top: 6px; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#seek { height: 12px; cursor: pointer; background: #08090b;
+  border: 1px solid; border-color: var(--edge-lo) var(--edge-hi) var(--edge-hi) var(--edge-lo); }
+#seekfill { height: 100%; width: 0; background: linear-gradient(#f3d58a, #b8902f); }
+#tbtns { display: grid; grid-template-columns: 1fr 1fr 1fr 1.6fr; gap: 6px; }
+#tbtns button { font-size: 22px; padding: 8px 0; line-height: 1.2; }
+#rec { color: #ffb4ab; font-size: 16px !important; }
+#rec kbd { margin-left: 2px; }
+#rec.on { background: linear-gradient(#f0493e, #a51d15); color: #fff; animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { box-shadow: inset 0 0 0 2px #ffd0cb; } }
+#status { color: var(--gold); min-height: 1.45em; }
+#perf { font-variant-numeric: tabular-nums; }
+#perf.slow { color: var(--warn); }
+
+/* ---- playlist and library: green-on-black lists */
+#playlist, #library { list-style: none; margin: 0; padding: 3px 0; max-height: 28vh; overflow-y: auto; background: var(--lcd-bg);
+  border: 1px solid; border-color: var(--edge-lo) var(--edge-hi) var(--edge-hi) var(--edge-lo); font-size: 15px; }
+#playlist:empty, #library:empty { display: none; }
+#playlist li, #library li { display: flex; gap: 8px; align-items: center; padding: 5px 8px; color: #9fe8b0; cursor: pointer; }
+#playlist li:hover, #library li:hover { background: #10261a; }
+#playlist li.on { background: #3a2f10; color: var(--gold); }
+#playlist .name, #library .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#playlist .sub { color: var(--lcd-dim); font-size: 12px; white-space: nowrap; }
+#playlist .sub.ready { color: var(--lcd); } #playlist .sub.error { color: var(--warn); }
+#library li.in { color: var(--lcd-dim); }
+li .x, li .add { flex: none; font: bold 14px var(--mono); padding: 0 8px; line-height: 22px; }
+li .x { visibility: hidden; } li:hover .x { visibility: visible; }
+#library .add:disabled { visibility: hidden; }
+
+/* ---- settings and help */
+#subsKey { display: flex; flex-direction: column; gap: 4px; }
+#keyHint { font-size: 13px; } #keyHint.bad { color: var(--warn); }
+.q { font: bold 14px var(--mono); color: var(--gold) !important; }
+table.help { border-collapse: collapse; width: 100%; font-size: 14px; }
+table.help th { text-align: left; color: var(--gold); font-weight: normal; padding: 4px 6px; border-bottom: 1px solid #000; }
+table.help td { padding: 4px 6px; border-bottom: 1px solid rgba(0,0,0,.35); }
+table.help td:first-child { color: var(--muted); }
+p.keys { line-height: 2; }
+
+/* ---- the take preview */
+#syncDlg { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.75); display: flex; align-items: center; justify-content: center; padding: 16px; }
+#syncDlg[hidden] { display: none; }
+#syncDlg .card { width: min(900px, 100%); max-height: 100%; overflow: auto; gap: 9px; }
+#syncDlg .row { flex-wrap: wrap; }
+#syncDlg .row > button { flex: none; }
+#syncDlg .hint { font-size: 12px; }
+#syncDlg video { flex: none; align-self: center; height: 60vh; max-width: 100%; background: #000; }   /* flex: none, or the card squeezes it to 0 */
+#syncDlg #syncInfo { color: var(--muted); font-size: 13px; margin-left: auto; }
+#syncDlg #syncAutoMsg { color: var(--muted); }
+#syncDlg input[type=range] { width: 100%; accent-color: var(--gold); }
